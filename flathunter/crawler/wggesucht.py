@@ -62,7 +62,7 @@ def get_price(numbers_row: Tag) -> Optional[str]:
     price_el = numbers_row.find("div", {"class": "col-xs-3"})
     if not isinstance(price_el, Tag):
         return None
-    return price_el.text.strip()
+    return re.sub(r'[^(\d,.)]', '', price_el.text.strip())
 
 def get_dates(numbers_row: Tag) -> List[str]:
     """Parse the advert dates from the expose"""
@@ -76,7 +76,7 @@ def get_size(numbers_row: Tag) -> List[str]:
     size_el = numbers_row.find("div", {"class": "text-right"})
     if not isinstance(size_el, Tag):
         return []
-    return re.findall(r'\d{1,4}\sm²', size_el.text)
+    return re.findall(r'(\d+)\sm²', size_el.text)
 
 def parse_expose_element_to_details(row: Tag, crawler: str) -> Optional[Dict]:
     """Parse an Expose soup element to an Expose details dictionary"""
@@ -104,11 +104,18 @@ def parse_expose_element_to_details(row: Tag, crawler: str) -> Optional[Dict]:
     if len(size) == 0:
         logger.warning("No size found - skipping")
         return None
+    else:
+        size = size[0]
 
     if len(dates) == 2:
         title = f"{title} vom {dates[0]} bis {dates[1]}"
     else:
         title = f"{title} ab dem {dates[0]}"
+
+    try:
+        price_per_qm = "{:.2f}".format(int(float(price)) / int(float(size)))
+    except (IndexError, TypeError):
+        price_per_qm = 0
 
     details = {
         'id': int(url.split('.')[-2]),
@@ -116,7 +123,8 @@ def parse_expose_element_to_details(row: Tag, crawler: str) -> Optional[Dict]:
         'url': url,
         'title': title,
         'price': price,
-        'size': size[0],
+        'size': size,
+        'price_per_qm': price_per_qm,
         'rooms': rooms,
         'address': url,
         'crawler': crawler
@@ -126,6 +134,8 @@ def parse_expose_element_to_details(row: Tag, crawler: str) -> Optional[Dict]:
         details['to'] = dates[1]
     elif len(dates) == 1:
         details['from'] = dates[0]
+
+    logger.debug('details: %s', details)
     return details
 
 def liste_attribute_filter(element: Union[Tag, str]) -> bool:

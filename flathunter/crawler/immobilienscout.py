@@ -151,7 +151,27 @@ class CrawlImmobilienscout(Crawler):
             ]
 
         object_id: int = int(entry.get("@id", 0))
-        return {
+        price = re.sub(r'[^(\d,.)]', '', str(entry.get("price", {}).get("value", 0)))
+        size = re.match(r'(\d+)', str(entry.get("livingSpace", 0)))[1]
+        rooms = re.match(r'(\d+)', str(entry.get("numberOfRooms", 0)))[1]
+
+        try:
+            contact_details_obj = entry.get("contactDetails", {})
+            if len(contact_details_obj) > 0:
+                firstname = str(contact_details_obj.get("firstname", ""))
+                lastname = str(contact_details_obj.get("lastname", ""))
+                company = str(contact_details_obj.get("company", ""))
+
+                contact_details = "%s,%s,%s" % (firstname, lastname, company)
+        except (IndexError, TypeError, ValueError):
+            contact_details = ""
+            
+        try:
+            price_per_qm = "{:.2f}".format(int(float(price)) / int(float(size)))
+        except (IndexError, TypeError):
+            price_per_qm = 0
+
+        entry_object = {
             'id': object_id,
             'url': f"https://www.immobilienscout24.de/expose/{str(object_id)}",
             'image': images[0] if len(images) else self.FALLBACK_IMAGE_URL,
@@ -159,12 +179,16 @@ class CrawlImmobilienscout(Crawler):
             'title': entry.get("title", ''),
             'address': entry.get("address", {}).get("description", {}).get("text", ''),
             'crawler': self.get_name(),
-            'price': str(entry.get("price", {}).get("value", '')),
+            'price': price,
             'total_price':
                 str(entry.get('calculatedTotalRent', {}).get("totalRent", {}).get('value', '')),
-            'size': str(entry.get("livingSpace", '')),
-            'rooms': str(entry.get("numberOfRooms", ''))
+            'price_per_qm': price_per_qm,
+            'size': size,
+            'rooms': rooms,
+            'contact_details': contact_details,
         }
+        logger.debug('entry_object: %s', entry_object)
+        return entry_object
 
     def set_cookie(self):
         """Sets request header cookie parameter to identify as a logged in user"""
@@ -246,15 +270,22 @@ class CrawlImmobilienscout(Crawler):
                 'crawler': self.get_name()
             }
             if len(attr_els) > 2:
-                details['price'] = attr_els[0].text.strip().split(' ')[0].strip()
-                details['size'] = attr_els[1].text.strip().split(' ')[0].strip() + " qm"
-                details['rooms'] = attr_els[2].text.strip().split(' ')[0].strip()
+                details['price'] = re.sub(r'[^(\d,.)]', '', attr_els[0].text.strip().split(' ')[0].strip())
+                details['size'] = re.match(r'(\d+)', attr_els[1].text.strip().split(' ')[0].strip())[1]
+                details['rooms'] = re.match(r'(\d+)', attr_els[2].text.strip().split(' ')[0].strip())[1]
             else:
                 # If there are less than three elements, it is unclear which is what.
-                details['price'] = ''
-                details['size'] = ''
-                details['rooms'] = ''
-            # print entries
+                details['price'] = 0
+                details['size'] = 0
+                details['rooms'] = 0
+
+            try:
+                details['price_per_qm'] = "{:.2f}".format(int(details['price']) / int(details['size']))
+            except (IndexError, TypeError):
+                details['price_per_qm'] = 0
+
+            logger.debug('details: %s', details)
+
             exist = False
             for expose in entries:
                 if expose_id == expose["id"]:

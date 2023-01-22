@@ -76,6 +76,8 @@ class SenderTelegram(Processor, Notifier):
         """
 
         payload = {
+            'disable_web_page_preview': 'true',
+            'parse_mode': 'Markdown',
             'chat_id': str(chat_id),
             'text': message,
         }
@@ -171,7 +173,9 @@ class SenderTelegram(Processor, Notifier):
             rooms=expose.get('rooms', 'N/A'),
             size=expose.get('size', 'N/A'),
             price=expose.get('price', 'N/A'),
+            price_per_qm = expose.get('price_per_qm', 'N/A'),
             url=expose.get('url', 'N/A'),
             address=expose.get('address', 'N/A'),
-            durations=expose.get('durations', 'N/A')
+            durations=expose.get('durations', 'N/A'),
+            contact_details = expose.get('contact_details', 'N/A')
         ).strip()

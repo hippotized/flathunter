@@ -58,22 +58,24 @@ class CrawlImmowelt(Crawler):
 
         for idx, title_el in enumerate(title_elements):
             try:
-                price = expose_ids[idx].find(
-                    "div", attrs={"data-test": "price"}).text
+                price = re.sub(r'[^(\d,.)]', '', expose_ids[idx].find(
+                    "div", attrs={"data-test": "price"}).text)
+                price = replace(",", ".", price)
+                price = int(float(price))
             except IndexError:
-                price = ""
+                price = 0
 
             try:
-                size = expose_ids[idx].find(
-                    "div", attrs={"data-test": "area"}).text
+                size = re.match(r'(\d+)', expose_ids[idx].find(
+                    "div", attrs={"data-test": "area"}).text)[1]
             except IndexError:
-                size = ""
+                size = 0
 
             try:
-                rooms = expose_ids[idx].find(
-                    "div", attrs={"data-test": "rooms"}).text
+                rooms = re.match(r'(\d+)', expose_ids[idx].find(
+                    "div", attrs={"data-test": "rooms"}).text)[1]
             except IndexError:
-                rooms = ""
+                rooms = 0
 
             url = expose_ids[idx].get("href")
 
@@ -92,6 +94,11 @@ class CrawlImmowelt(Crawler):
             except IndexError:
                 address = ""
 
+            try:
+                price_per_qm = "{:.2f}".format(int(price) / int(size))
+            except (IndexError, TypeError):
+                price_per_qm = 0
+
             processed_id = int(
               hashlib.sha256(expose_ids[idx].get("id").encode('utf-8')).hexdigest(), 16
             ) % 10**16
@@ -103,10 +110,12 @@ class CrawlImmowelt(Crawler):
                 'title': title_el.text.strip(),
                 'rooms': rooms,
                 'price': price,
+                'price_per_qm': price_per_qm,
                 'size': size,
                 'address': address,
                 'crawler': self.get_name()
             }
+            logger.debug('details: %s', details)
             entries.append(details)
 
         logger.debug('Number of entries found: %d', len(entries))

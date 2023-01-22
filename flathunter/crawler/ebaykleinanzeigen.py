@@ -63,6 +63,7 @@ class CrawlEbayKleinanzeigen(Crawler):
             try:
                 price = expose_ids[idx].find(
                     class_="aditem-main--middle--price-shipping--price").text.strip()
+                price = re.sub(r'[^(\d,.)]', '', price)
                 tags = expose_ids[idx].find_all(class_="simpletag")
                 address = expose_ids[idx].find("div", {"class": "aditem-main--top--left"})
                 image_element = expose_ids[idx].find("div", {"class": "galleryimage-element"})
@@ -86,20 +87,31 @@ class CrawlEbayKleinanzeigen(Crawler):
                     rooms = rooms_match[1]
 
             try:
-                size = tags[0].text
+                size = re.match(r'(\d+)', tags[0].text)[1]
             except (IndexError, TypeError):
-                size = ""
+                size = 0
+            try:
+                rooms = re.match(r'(\d+)', tags[1].text)[1]
+            except (IndexError, TypeError):
+                rooms = 0
+            try:
+                price_per_qm = "{:.2f}".format(int(price) / int(size))
+            except (IndexError, TypeError, ZeroDivisionError):
+                price_per_qm = 0
+
             details = {
                 'id': int(expose_ids[idx].get("data-adid")),
                 'image': image,
                 'url': ("https://www.ebay-kleinanzeigen.de" + title_el.get("href")),
                 'title': title_el.text.strip(),
                 'price': price,
+                'price_per_qm': price_per_qm,
                 'size': size,
                 'rooms': rooms,
                 'address': address,
                 'crawler': self.get_name()
             }
+            logger.debug('details: %s', details)
             entries.append(details)
 
         logger.debug('Number of entries found: %d', len(entries))
